@@ -428,7 +428,7 @@ def connectX86ClassicSystem(x86_sys, numCPUs):
     x86_sys.iobus = IOXBar()
     x86_sys.bridge = Bridge(delay='50ns')
     x86_sys.bridge.mem_side_port = x86_sys.iobus.cpu_side_ports
-    x86_sys.bridge.slave = x86_sys.membus.mem_side_port
+    x86_sys.bridge.slave = x86_sys.membus.master
     # Allow the bridge to pass through:
     #  1) kernel configured PCI device memory map address: address range
     #     [0xC0000000, 0xFFFF0000). (The upper 64kB are reserved for m5ops.)
@@ -469,7 +469,7 @@ def connectX86RubySystem(x86_sys):
     x86_sys.pc.attachIO(x86_sys.iobus, x86_sys._dma_ports)
 
 
-def makeX86System(mem_mode, numCPUs=1, mdesc=None, workload=None, Ruby=False):
+def makeX86System(mem_mode, numCPUs=1, mdesc=None, workload=None, Ruby=False, packet_rate=1, packet_size=64, num_nics=1, num_loadgens=0, loadgen_start=1, loadgen_stop=m5.MaxTick, loadgen_mode="Static"):
     self = System()
 
     if workload is None:
@@ -499,8 +499,35 @@ def makeX86System(mem_mode, numCPUs=1, mdesc=None, workload=None, Ruby=False):
         self.mem_ranges = [AddrRange('3GB'),
             AddrRange(Addr('4GB'), size = excess_mem_size)]
 
+    
+    nics = []
+    loadgens = []
+    links = []
+
+    for i in range(num_nics):
+        nics.append(IGbE_e1000(adq_idx=i,pci_bus=0, pci_dev=i, pci_func=0,
+                             InterruptLine=(16+i), InterruptPin=1))
+
+    for i in range(num_loadgens):
+        loadgens.append(LoadGenerator(packet_rate = packet_rate, packet_size = packet_size, start_tick=loadgen_start, stop_tick=loadgen_stop, mode=loadgen_mode))
+        links.append(EtherLink(speed = '1000Gbps'))
+        links[i].int0 = nics[i].interface
+        links[i].int1 = loadgens[i].interface
+    
+
+    class ModifiedPc(Pc):
+        def __init__(self,nics):
+            super(ModifiedPc, self).__init__()
+            self.nics = nics
+
+
+        def attachIO(self, bus, dma_ports = []):
+            super(ModifiedPc, self).attachIO(bus, dma_ports)
+            for dev in self.nics:
+                dev.pio = bus.master
+                dev.dma = bus.slave
     # Platform
-    self.pc = Pc()
+    self.pc = ModifiedPc(nics)
 
     # Create and connect the busses required by each memory system
     if Ruby:
@@ -611,9 +638,9 @@ def makeX86System(mem_mode, numCPUs=1, mdesc=None, workload=None, Ruby=False):
     return self
 
 def makeLinuxX86System(mem_mode, numCPUs=1, mdesc=None, Ruby=False,
-                       cmdline=None):
+                       cmdline=None, packet_rate=1, packet_size=64, num_nics=1, num_loadgens=0, loadgen_start=1, loadgen_stop=m5.MaxTick, loadgen_mode="Static"):
     # Build up the x86 system and then specialize it for Linux
-    self = makeX86System(mem_mode, numCPUs, mdesc, X86FsLinux(), Ruby)
+    self = makeX86System(mem_mode, numCPUs, mdesc, X86FsLinux(), Ruby, packet_rate, packet_size, num_nics, num_loadgens, loadgen_start, loadgen_stop, loadgen_mode)
 
     # We assume below that there's at least 1MB of memory. We'll require 2
     # just to avoid corner cases.
@@ -655,7 +682,7 @@ def makeLinuxX86System(mem_mode, numCPUs=1, mdesc=None, Ruby=False,
 
     # Command line
     if not cmdline:
-        cmdline = 'earlyprintk=ttyS0 console=ttyS0 lpj=7999923 root=/dev/hda1'
+        cmdline = 'earlyprintk=ttyS0 console=ttyS0 lpj=7999923 root=/dev/sda1'
     self.workload.command_line = fillInCmdline(mdesc, cmdline)
     return self
 

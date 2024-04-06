@@ -1722,6 +1722,11 @@ class SimObject(object, metaclass=MetaSimObject):
 
         param_names = list(self._params.keys())
         param_names.sort()
+        if(self.path() == "system.pc.nics"):
+            print(param_names)
+            print(cc_params)
+            print(cc_params_struct)
+            print(self.type)
         for param in param_names:
             value = self._values.get(param)
             if value is None:

@@ -20,12 +20,12 @@ function setup_dirs {
 }
 
 function run_simulation {
-  "$GEM5_DIR/build/ARM/gem5.$GEM5TYPE" $DEBUG_FLAGS --outdir="$RUNDIR" \
+  "$GEM5_DIR/build/X86/gem5.$GEM5TYPE" $DEBUG_FLAGS --outdir="$RUNDIR" \
   "$GEM5_DIR"/configs/example/fs.py --cpu-type=$CPUTYPE \
-  --kernel="$RESOURCES/vmlinux" --disk="$RESOURCES/rootfs.ext2" --bootloader="$RESOURCES/boot.arm64" --root=/dev/sda \
+  --kernel="$RESOURCES/vmlinux" --disk="$RESOURCES/x86-ubuntu-18.04-img" --root=/dev/sda \
   --num-cpus=2 --mem-size=8192MB --script="$GUEST_SCRIPT_DIR/$GUEST_SCRIPT" \
   --num-nics="$num_nics" --num-loadgens="$num_nics" \
-  --checkpoint-dir="$CKPT_DIR" $CONFIGARGS
+  --checkpoint-dir="$CKPT_DIR" &> $CONFIGARGS
 }
 
 if [[ -z "${GIT_ROOT}" ]]; then
@@ -96,9 +96,10 @@ if [[ -n "$checkpoint" ]]; then
   RUNDIR=${GIT_ROOT}/rundir/$num_nics"NIC-ckp"
   setup_dirs
   echo "Taking Checkpoint for NICs=$num_nics" >&2
-  GEM5TYPE="fast"
-  CPUTYPE="AtomicSimpleCPU"
-  CONFIGARGS="-m 6000000000000"
+  GEM5TYPE="debug"
+  DEBUG_FLAGS="--debug-flags=Kvm"
+  CPUTYPE="X86KvmCPU"
+  CONFIGARGS=" s.log"
   run_simulation
   exit 0
 else

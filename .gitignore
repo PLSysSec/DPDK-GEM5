@@ -3,3 +3,7 @@ venv
 ckpts
 rundir
 gem5/build
+*/**/*.log
+*/**/*.img
+*/**/*-img
+*/**/*.tar.gz
